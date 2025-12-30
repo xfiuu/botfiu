@@ -31,8 +31,8 @@ CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 # JSONBin.io configuration
-JSONBIN_API_KEY = os.getenv('JSONBIN_API_KEY')
-JSONBIN_BIN_ID = os.getenv('JSONBIN_BIN_ID')
+JSONBIN_API_KEY = os.getenv('JSONBIN_API_KEY')  # Thêm vào .env file
+JSONBIN_BIN_ID = os.getenv('JSONBIN_BIN_ID')    # Thêm vào .env file
 
 if not DISCORD_TOKEN:
     exit("LỖI: Không tìm thấy DISCORD_TOKEN")
@@ -2032,18 +2032,9 @@ def callback():
         'code': code,
         'redirect_uri': REDIRECT_URI,
     }
-    
-    # --- FIX 1015: Thêm User-Agent ---
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'DiscordBot (https://github.com/yourname/yourrepo, 1.0)'
-    }
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
     token_response = requests.post(token_url, data=payload, headers=headers)
-    
-    if token_response.status_code == 429:
-        return "⚠️ Đang bị giới hạn (Rate Limited). Vui lòng đợi một lát rồi thử lại.", 429
-        
     if token_response.status_code != 200:
         return f"❌ Lỗi khi lấy token: {token_response.text}", 500
     
@@ -2051,14 +2042,8 @@ def callback():
     access_token = token_data['access_token']
 
     user_info_url = 'https://discord.com/api/v10/users/@me'
-    
-    # --- FIX 1015: Thêm User-Agent khi lấy info user ---
-    headers_user = {
-        'Authorization': f'Bearer {access_token}',
-        'User-Agent': 'DiscordBot (https://github.com/yourname/yourrepo, 1.0)'
-    }
-    
-    user_response = requests.get(user_info_url, headers=headers_user)
+    headers = {'Authorization': f'Bearer {access_token}'}
+    user_response = requests.get(user_info_url, headers=headers)
     
     if user_response.status_code != 200:
         return "❌ Lỗi: Không thể lấy thông tin người dùng.", 500
