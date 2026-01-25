@@ -362,7 +362,7 @@ def delete_user_from_json(user_id: str):
             with open('tokens.json', 'w') as f:
                 json.dump(tokens, f, indent=4)
             print(f"✅ Deleted user {user_id} from JSON file")
-        return True
+        return True 
     except (FileNotFoundError, json.JSONDecodeError):
         return True 
     except Exception as e:
@@ -374,8 +374,7 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-# --- THAY ĐỔI ID CHỦ BOT TẠI ĐÂY ---
-# Đã cập nhật ID mới: 970585437599072266
+# --- ID CHỦ BOT ---
 bot = commands.Bot(command_prefix='!', intents=intents, owner_id=970585437599072266, help_command=None)
 
 # --- FLASK WEB SERVER SETUP ---
@@ -1188,6 +1187,7 @@ async def help_slash(interaction: discord.Interaction):
     if await bot.is_owner(interaction.user):
         embed.add_field(name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)", value="----------------------------------", inline=False)
         embed.add_field(name="`!vhoang <name>`", value="Tạo kênh trên TOÀN BỘ server.", inline=True)
+        embed.add_field(name="`!block_spam <user> <role> <channel>`", value="Tạo role/chặn kênh toàn bộ server.", inline=True)
         embed.add_field(name="`!roster`", value="Xem danh sách điệp viên.", inline=True)
         embed.add_field(name="`!deploy`", value="Thêm NHIỀU điệp viên vào MỘT server.", inline=True)
         embed.add_field(name="`!invite <User>`", value="Thêm MỘT điệp viên vào NHIỀU server.", inline=True)
@@ -1218,6 +1218,7 @@ async def help(ctx):
     if await bot.is_owner(ctx.author):
         embed.add_field(name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)", value="----------------------------------", inline=False)
         embed.add_field(name="`!vhoang <name>`", value="Tạo kênh trên TOÀN BỘ server.", inline=True)
+        embed.add_field(name="`!block_spam <user> <role> <channel>`", value="Tạo role/chặn kênh toàn bộ server.", inline=True)
         embed.add_field(name="`!roster`", value="Xem danh sách điệp viên.", inline=True)
         embed.add_field(name="`!deploy`", value="Thêm NHIỀU điệp viên vào MỘT server.", inline=True)
         embed.add_field(name="`!invite <User>`", value="Thêm MỘT điệp viên vào NHIỀU server.", inline=True)
@@ -1456,7 +1457,7 @@ async def getid(ctx):
     )
     await ctx.send(embed=embed, view=view)
 
-# --- LỆNH MỚI: !vhoang ---
+# --- LỆNH MỚI: !vhoang (Tạo kênh) ---
 @bot.command(name='vhoang', help='(Chủ bot) Tự động tạo kênh trên toàn bộ server.')
 @commands.is_owner()
 async def vhoang(ctx, *, channel_name: str = None):
@@ -1516,6 +1517,74 @@ async def vhoang(ctx, *, channel_name: str = None):
         if len(failed_details) > 10:
             error_text += f"\n... và {len(failed_details) - 10} server khác."
         embed.add_field(name="⚠️ Chi tiết thất bại", value=f"```{error_text}```", inline=False)
+
+    await msg.edit(content=None, embed=embed)
+
+# --- LỆNH MỚI: !block_spam (Tạo role + Chặn kênh) ---
+@bot.command(name='block_spam', help='(Chủ bot) Tạo role, gán cho user và chặn xem kênh trên toàn server.')
+@commands.is_owner()
+async def block_spam(ctx, target_user: discord.User, role_name: str, channel_name: str):
+    """
+    Cách dùng: !block_spam <@User/ID> <Tên Role> <Tên Kênh>
+    Ví dụ: !block_spam @VHoang Ke-bi-cam spam
+    """
+    msg = await ctx.send(f"🛡️ Đang kích hoạt giao thức chặn...\n👤 Mục tiêu: `{target_user.name}`\n🏷️ Role: `{role_name}`\n🚫 Chặn kênh: `{channel_name}`")
+
+    success_count = 0
+    skip_count = 0
+    fail_count = 0
+    fail_details = []
+
+    for guild in bot.guilds:
+        try:
+            # 1. Kiểm tra xem thành viên có trong server này không
+            member = guild.get_member(target_user.id)
+            if not member:
+                skip_count += 1
+                continue # Bỏ qua nếu user không ở server này
+
+            # 2. Tìm hoặc Tạo Role
+            role = discord.utils.get(guild.roles, name=role_name)
+            if not role:
+                # Tạo role mới nếu chưa có
+                role = await guild.create_role(name=role_name, reason="Auto block spam command")
+            
+            # 3. Gán Role cho thành viên (nếu chưa có)
+            if role not in member.roles:
+                await member.add_roles(role)
+
+            # 4. Tìm kênh và chặn quyền xem
+            formatted_channel_name = channel_name.lower().strip().replace(" ", "-")
+            channel = discord.utils.get(guild.text_channels, name=formatted_channel_name)
+
+            if channel:
+                # Đặt quyền: Role này KHÔNG ĐƯỢC xem kênh này
+                await channel.set_permissions(role, view_channel=False, send_messages=False)
+                success_count += 1
+            else:
+                success_count += 1 
+
+        except discord.Forbidden:
+            fail_count += 1
+            fail_details.append(f"{guild.name}: Bot thiếu quyền (Manage Roles/Channels)")
+        except Exception as e:
+            fail_count += 1
+            fail_details.append(f"{guild.name}: Lỗi {str(e)}")
+
+    embed = discord.Embed(
+        title="🛡️ Báo Cáo Chặn Truy Cập",
+        description=f"Đã xử lý xong cho user **{target_user.name}**.",
+        color=0xff0000
+    )
+    embed.add_field(name="✅ Thành công", value=f"{success_count} server", inline=True)
+    embed.add_field(name="⏭️ Bỏ qua (User không ở đó)", value=f"{skip_count} server", inline=True)
+    embed.add_field(name="❌ Thất bại", value=f"{fail_count} server", inline=True)
+
+    if fail_details:
+        error_text = "\n".join(fail_details[:10])
+        if len(fail_details) > 10:
+            error_text += f"\n... và {len(fail_details) - 10} lỗi khác."
+        embed.add_field(name="⚠️ Chi tiết lỗi", value=f"```{error_text}```", inline=False)
 
     await msg.edit(content=None, embed=embed)
 
