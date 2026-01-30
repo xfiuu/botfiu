@@ -1,5 +1,4 @@
-# main.py - Discord Bot Ultimate Version
-# Tích hợp: Auto Create Channel, Auto Block Spam, Auto Join, Web Dashboard
+# main.py - Discord Bot Ultimate Version (Updated: Kick Feature)
 import os
 import json
 import asyncio
@@ -365,6 +364,35 @@ async def block_spam(ctx, target_user: discord.User, role_name: str, channel_nam
 
     await msg.edit(content=f"✅ Đã thiết lập chặn trên **{success_count}** server có mặt user đó.")
 
+# --- TÍNH NĂNG 5 (MỚI): KICK USER KHỎI TOÀN BỘ SERVER (CÓ DELAY) ---
+@bot.command(name='kick_all')
+@commands.is_owner()
+async def kick_all(ctx, target_user: discord.User):
+    """
+    Đuổi (Kick) một thành viên khỏi TOÀN BỘ server mà bot tham gia.
+    Cách dùng: !kick_all <User_ID> hoặc !kick_all @User
+    """
+    msg = await ctx.send(f"🦶 Đang thực hiện **Kick** user **{target_user.name}** khỏi toàn bộ server... (Delay 2s)")
+    
+    success = 0
+    fail = 0
+    
+    for guild in bot.guilds:
+        await asyncio.sleep(2) # DELAY 2 GIÂY AN TOÀN
+        try:
+            member = guild.get_member(target_user.id)
+            if member:
+                await member.kick(reason=f"Global Kick command by {ctx.author}")
+                success += 1
+            else:
+                pass # User không có trong server này
+        except discord.Forbidden:
+            fail += 1 # Bot không có quyền kick (hoặc role thấp hơn)
+        except:
+            fail += 1
+            
+    await msg.edit(content=f"✅ **Hoàn tất Kick!**\n👟 Đã kick: **{success}** server\n❌ Thất bại (Thiếu quyền/Lỗi): **{fail}** server")
+
 # --- CÁC LỆNH QUẢN LÝ KHÁC ---
 @bot.command()
 @commands.is_owner()
@@ -380,9 +408,9 @@ async def roster(ctx):
 @bot.command()
 @commands.is_owner()
 async def remove(ctx, user: discord.User):
-    """Xóa user khỏi database"""
+    """Xóa user khỏi database (Không phải kick)"""
     delete_user_data(user.id)
-    await ctx.send(f"🗑️ Đã xóa dữ liệu của {user.name}")
+    await ctx.send(f"🗑️ Đã xóa dữ liệu lưu trữ của {user.name}")
 
 @bot.command()
 async def help(ctx):
@@ -394,8 +422,9 @@ async def help(ctx):
     
     **Lệnh Admin (Chỉ Chủ Bot):**
     `!force_add <User>` : Kéo user vào all server.
-    `!vhoang <tên_kênh>` : Tạo kênh toàn server (nếu chưa có).
-    `!block_spam <User> <Role> <Kênh>` : Tạo role, gán role, chặn kênh.
+    `!vhoang <tên_kênh>` : Tạo kênh toàn server.
+    `!block_spam <User> <Role> <Kênh>` : Chặn kênh toàn server.
+    `!kick_all <User>` : Kick user khỏi toàn bộ server.
     `!roster` : Xem danh sách user.
     `!remove <User>` : Xóa user khỏi data.
     """
