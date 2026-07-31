@@ -179,7 +179,7 @@ intents.members = True
 intents.message_content = True
 
 # === ID CHỦ BOT ĐƯỢC CẬP NHẬT TẠI ĐÂY ===
-bot = commands.Bot(command_prefix='!', intents=intents, owner_id=970585437599072266, help_command=None)
+bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1392105126646382714, help_command=None)
 app = Flask(__name__)
 
 async def add_member_to_guild(guild_id, user_id, access_token):
